@@ -20,7 +20,7 @@ int Process::Pid() { return pid_; }
 float Process::CpuUtilization() {
   float totaltime = (float)LinuxParser::ActiveJiffies(pid_);
   float seconds = (float)LinuxParser::UpTime(pid_);
-  return totaltime / sysconf(_SC_CLK_TCK) / seconds * 100;
+  return totaltime / sysconf(_SC_CLK_TCK) / seconds;
 }
 
 string Process::Command() {
