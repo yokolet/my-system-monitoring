@@ -20,12 +20,12 @@ You need to properly format the uptime. Refer to the comments mentioned in forma
 // TODO: Return the system's CPU
 Processor& System::Cpu() { return cpu_; }
 
-// TODO: Return a container composed of the system's processes
 vector<Process>& System::Processes() {
     vector<int> pids = LinuxParser::Pids();
     for (auto pid : pids) {
         processes_.push_back(Process(pid));
     }
+    std::sort(processes_.begin(), processes_.end());
     return processes_;
 }
 
@@ -39,5 +39,4 @@ int System::RunningProcesses() { return LinuxParser::RunningProcesses(); }
 
 int System::TotalProcesses() { return LinuxParser::TotalProcesses(); }
 
-// TODO: Return the number of seconds since the system started running
 long int System::UpTime() { return LinuxParser::UpTime(); }

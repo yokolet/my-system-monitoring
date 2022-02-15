@@ -102,21 +102,72 @@ long LinuxParser::UpTime() {
   return 0;
 }
 
-// TODO: Read and return the number of jiffies for the system
-long LinuxParser::Jiffies() { return 0; }
+long LinuxParser::Jiffies() {
+  // jiffies = user_ - guest_ + nice_ - guest_nice_ + system_ + irq_ + softirq_ + idle_ + iowait_ + steal_ + guest_ + guest_nice_
+  // jiffies = user_ + nice_ + system_ + irq_ + softirq_ + idle_ + iowait_ + steal_
+  std::vector<string> values = CpuUtilization();
+  if (values.size() > kSteal_ + 1) {
+    long result = 0;
+    for (int i = kUser_; i <= kSteal_; i++) {
+      result += std::stol(values[i]);
+    }
+    return result;
+  }
+  return 0;
+}
 
-// TODO: Read and return the number of active jiffies for a PID
-// REMOVE: [[maybe_unused]] once you define the function
-long LinuxParser::ActiveJiffies(int pid[[maybe_unused]]) { return 0; }
+long LinuxParser::ActiveJiffies(int pid) {
+  string line, key, value;
+  std::vector<std::string> values;
+  std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::stringstream sstream(line);
+    while (std::getline(sstream, value, ' ')) {
+      values.push_back(value);
+    }
+    if (values.size() > 16) {
+      return std::stol(values[13]) +
+        std::stol(values[14]) +
+        std::stol(values[15]) +
+        std::stol(values[16]);
+    }
+  }
+  return 0;
+}
 
-// TODO: Read and return the number of active jiffies for the system
-long LinuxParser::ActiveJiffies() { return 0; }
+long LinuxParser::ActiveJiffies() {
+  return Jiffies() - IdleJiffies();
+}
 
-// TODO: Read and return the number of idle jiffies for the system
-long LinuxParser::IdleJiffies() { return 0; }
+long LinuxParser::IdleJiffies() {
+  // idlejiffies = idle_ + iowait_
+  std::vector<string> values = CpuUtilization();
+  if (values.size() > kIOwait_ + 1) {
+    long result = 0;
+    for (int i = kIdle_; i <= kIOwait_; i++) {
+      result += std::stol(values[i]);
+    }
+    return result;
+  }
+  return 0;
+}
 
-// TODO: Read and return CPU utilization
-vector<string> LinuxParser::CpuUtilization() { return {}; }
+vector<string> LinuxParser::CpuUtilization() {
+  string line, key, value;
+  std::vector<std::string> values;
+  std::ifstream stream(kProcDirectory + kStatFilename);
+  if (stream.is_open()) {
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    linestream >> value; // skips first value -- cpu
+    while (linestream >> value) {
+      values.push_back(value);
+    }
+    return values;
+  }
+  return {};
+}
 
 int LinuxParser::TotalProcesses() {
   string line, key, value;
@@ -159,8 +210,6 @@ string LinuxParser::Command(int pid) {
   return string();
 }
 
-// TODO: Read and return the memory used by a process
-// REMOVE: [[maybe_unused]] once you define the function
 string LinuxParser::Ram(int pid) {
   string line, key, value;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatusFilename);
@@ -170,9 +219,9 @@ string LinuxParser::Ram(int pid) {
       std::istringstream linestream(line);
       while (linestream >> key >> value) {
         if (key == "VmSize") {
-          std::stringstream ram;
-          ram << std::fixed << std::setprecision(2) << std::stof(value) / 1024;
-          return ram.str();
+          std::stringstream sstream;
+          sstream << std::fixed << std::setprecision(2) << std::stof(value) / 1024;
+          return sstream.str();
         }
       }
     }
@@ -215,19 +264,17 @@ string LinuxParser::User(int pid) {
 }
 
 long LinuxParser::UpTime(int pid) {
-  const int INDEX = 21;
   string line, value;
+  std::vector<std::string> values;
   std::ifstream stream(kProcDirectory + std::to_string(pid) + kStatFilename);
   if (stream.is_open()) {
-    while (std::getline(stream, line)) {
-      int cnt = 0;
-      std::istringstream linestream(line);
-      while (linestream >> value) {
-        if (cnt == INDEX) {
-          return UpTime() - std::stol(value) / sysconf(_SC_CLK_TCK);
-        }
-        cnt++;
-      }
+    std::getline(stream, line);
+    std::istringstream linestream(line);
+    while (linestream >> value) {
+      values.push_back(value);
+    }
+    if (values.size() > 21) {
+      return UpTime() - std::stol(values[21]) / sysconf(_SC_CLK_TCK);
     }
   }
   return 0;
